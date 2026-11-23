@@ -214,7 +214,7 @@ def fetch_gmail_vacancies_12h(
 
         folders_to_try = []
         if label_name:
-            folders_to_try.append(f'"{{label_name}}"')
+            folders_to_try.append(f'"{label_name}"')
         folders_to_try.extend(["INBOX", '"[Gmail]/All Mail"', '"[Gmail]/Почта"'])
 
         msg_ids: list[bytes] = []
@@ -243,13 +243,13 @@ def fetch_gmail_vacancies_12h(
                 continue
 
             body_text = _extract_email_text(msg)
-            urls = re.findall(r"https?://[^\s<>)"']+", body_text)
+            urls = re.findall(r"https?://[^\s<>)']+", body_text)
             vacancy_urls = [
                 u for u in urls
                 if ("hh.ru/vacancy/" in u or "superjob.ru/vacancy/" in u or "/ml/r/" in u)
             ]
 
-            hh_matches = re.findall(r"(https?://hh\.ru/vacancy/\d+[^\s<>)"']*)", body_text)
+            hh_matches = re.findall(r"(https?://hh\.ru/vacancy/\d+[^\s<>)']*)", body_text)
             seen_in_mail = set()
             for vurl in (hh_matches or vacancy_urls[:8]):
                 clean_url = vurl.split("?")[0].strip()
