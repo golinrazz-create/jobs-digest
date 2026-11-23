@@ -100,37 +100,70 @@ NOISE_TITLE_PATTERNS = [
     r"\bстример\b",
 ]
 
-STRONG_ROLE_PATTERNS = [
+# Высокий приоритет: СМИ/медиа, редактура, аналитика, лид/глава контент-фабрики/системы контента
+HIGH_PRIORITY_ROLE_PATTERNS = [
     r"главн\w* редактор",
     r"шеф[- ]редактор",
     r"директор по контенту",
     r"контент[- ]директор",
     r"head of content",
     r"chief content officer",
-    r"руководитель контент",
-    r"продюсер контент",
-    r"куратор контент",
-    r"редактор",
+    r"руководитель контент[- ]завод",
+    r"глава контент[- ]завод",
+    r"продюсер контент[- ]завод",
+    r"куратор контент[- ]завод",
+    r"руководитель направлени\w* контент",
+    r"руководитель отдел\w* контент",
+    r"руководитель группы медиааналитик",
+    r"медиааналитик",
     r"журналист",
+    r"редактор сми",
+    r"выпускающий редактор",
+    r"редактор новостей",
+    r"редактор сайта",
+]
+
+# Профильный контент/тексты/редактура без продающего маркетинга и воронок
+CONTENT_CREATION_PATTERNS = [
+    r"редактор",
     r"автор текстов",
     r"копирайтер",
-    r"медиааналитик",
+    r"сценарист",
+    r"контент[- ]мейкер",
+    r"контент[- ]продюсер",
     r"аналитик",
 ]
 
+# Маркеры "чистого контент-маркетинга / продаж / воронок / товарного SMM" — не удаляем, но понижаем
+PURE_CONTENT_MARKETING_PATTERNS = [
+    r"контент[- ]маркетолог",
+    r"контент[- ]маркетинг",
+    r"продающ\w* текст",
+    r"воронка\w* продаж",
+    r"лидогенерац",
+    r"перформанс",
+    r"performance",
+    r"маркетплейс",
+    r"наклейк\w* логотип",
+    r"товар\w* знак",
+    r"бренд[- ]менеджер",
+    r"smm[- ]менеджер",
+    r"smm специалист",
+    r"head of smm",
+    r"smm[- ]стратег",
+]
+
 MEDIA_CONTEXT_PATTERNS = [
-    r"сми",
+    r"\bсми\b",
     r"медиа",
     r"редакц",
-    r"контент",
     r"журналист",
     r"бренд[- ]медиа",
     r"стать",
     r"лонгрид",
     r"новост",
-    r"текст",
     r"ии",
-    r"ai",
+    r"\bai\b",
     r"нейросет",
 ]
 
@@ -243,13 +276,13 @@ def fetch_gmail_vacancies_12h(
                 continue
 
             body_text = _extract_email_text(msg)
-            urls = re.findall(r"https?://[^\s<>)']+", body_text)
+            urls = re.findall(r"https?://[^\s<>)x27]+", body_text)
             vacancy_urls = [
                 u for u in urls
                 if ("hh.ru/vacancy/" in u or "superjob.ru/vacancy/" in u or "/ml/r/" in u)
             ]
 
-            hh_matches = re.findall(r"(https?://hh\.ru/vacancy/\d+[^\s<>)']*)", body_text)
+            hh_matches = re.findall(r"(https?://hh\.ru/vacancy/\d+[^\s<>)x27]*)", body_text)
             seen_in_mail = set()
             for vurl in (hh_matches or vacancy_urls[:8]):
                 clean_url = vurl.split("?")[0].strip()
@@ -385,34 +418,60 @@ def deduplicate_items(items: list[dict], seen_urls: set[str]) -> tuple[list[dict
 
 
 def score_item_against_profile(item: dict) -> dict:
-    """Оценивает вакансию по профилю редактора/медиаменеджера/контент-лида."""
+    """
+    Оценивает вакансию по профилю:
+    - приоритет: СМИ/медиа, редактура/аналитика, руководящие роли (Head of Content / глава контент-завода / система контента)
+      или создание контента без продающих текстов и воронок продаж;
+    - чистый контент-маркетинг / продажи / воронки / товарный SMM не отбрасываются совсем, но понижаются по приоритету.
+    """
     text_blob = f"{item.get('title', '')} {item.get('summary', '')} {item.get('raw_text', '')}".lower()
     title_low = (item.get("title") or "").lower()
 
     if any(re.search(pat, title_low, flags=re.I) for pat in NOISE_TITLE_PATTERNS):
         return {**item, "score": 2, "bucket": "skip", "flag_status": "stop_factor", "reasons": "Отсеяно по стоп-фактору роли/направления."}
 
-    role_hits = sum(1 for pat in STRONG_ROLE_PATTERNS if re.search(pat, text_blob, flags=re.I))
+    high_role_hits = sum(1 for pat in HIGH_PRIORITY_ROLE_PATTERNS if re.search(pat, text_blob, flags=re.I))
+    content_hits = sum(1 for pat in CONTENT_CREATION_PATTERNS if re.search(pat, text_blob, flags=re.I))
     media_hits = sum(1 for pat in MEDIA_CONTEXT_PATTERNS if re.search(pat, text_blob, flags=re.I))
+    marketing_hits = sum(1 for pat in PURE_CONTENT_MARKETING_PATTERNS if re.search(pat, text_blob, flags=re.I))
 
-    score = 4 + min(role_hits * 2, 4) + min(media_hits, 2)
-    if "санкт-петербург" in text_blob or "спб" in text_blob or "удален" in text_blob or "удалён" in text_blob or "remote" in text_blob:
-        score = min(10, score + 1)
+    # Базовый балл: приоритет медиа/редактуре/лид-ролям и контенту без "воронок/продаж"
+    score = 4
+    if high_role_hits > 0:
+        score += 3 + min(high_role_hits, 2)
+    elif content_hits > 0:
+        score += 2
+
+    if media_hits > 0:
+        score += min(media_hits, 2)
+
+    has_spb = any(s in text_blob for s in ["санкт-петербург", "спб", "петербург"])
+    has_remote = any(r in text_blob for r in ["удален", "удалён", "remote", "дистанц"])
+    if has_spb or has_remote:
+        score += 1
+
+    # Понижаем чистый контент-маркетинг / воронки / продажи / товарный SMM, но не удаляем полностью
+    penalty = 0
+    if marketing_hits > 0:
+        penalty = 2 + min(marketing_hits, 2)
+        score -= penalty
+
+    score = max(1, min(10, score))
 
     has_other_city = any(c in text_blob for c in ["сочи", "краснодар", "екатеринбург", "новосибирск", "казань", "саратов", "орел", "орёл", "тамбов"])
-    has_remote = any(r in text_blob for r in ["удален", "удалён", "remote", "дистанц"])
-    has_spb = any(s in text_blob for s in ["санкт-петербург", "спб", "петербург"])
-
     if has_other_city and not has_remote and not has_spb:
         score = max(5, min(6, score))
         flag_status = "high_alert"
         reasons = "Указан другой город без явной отметки удалёнки — проверить формат работы."
+    elif marketing_hits > 0 and high_role_hits == 0:
+        flag_status = "lower_priority_marketing"
+        reasons = "Понижено в приоритете: акцент на контент-маркетинге/продвижении/продажах; уточнить формат и задачи."
     elif "москва" in text_blob and not has_remote and not has_spb:
         flag_status = "check_details"
-        reasons = "Указана Москва — уточнить формат работы (удалёнка или очно) и условия."
+        reasons = "Приоритетный профиль (медиа/редактура/система контента), но указана Москва — уточнить удалёнку и условия."
     else:
         flag_status = "check_details"
-        reasons = "Подходит по профилю; стоит уточнить детали задач и вилку оплаты."
+        reasons = "Приоритетный профиль (медиа/редактура/контент); уточнить детали задач и оплату."
 
     bucket = "skip"
     if score >= 8:
@@ -478,6 +537,10 @@ def collect_and_score_12h(
             borderline_items.append(scored)
         else:
             skipped_count += 1
+
+    # Сортируем по убыванию оценки, чтобы сильные и приоритетные позиции шли первыми
+    strong_items.sort(key=lambda x: x.get("score", 0), reverse=True)
+    borderline_items.sort(key=lambda x: x.get("score", 0), reverse=True)
 
     state["seen_urls"] = list(updated_seen)[-1500:]
     state_file.parent.mkdir(parents=True, exist_ok=True)
