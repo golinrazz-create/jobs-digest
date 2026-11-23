@@ -67,7 +67,79 @@ TG_MED_CHANNELS = [
 ]
 WORKSPACE_RSS_URL = "http://feeds.feedburner.com/workspacevacancies"
 
-NOISE_TITLE_PATTERNS = [
+# 1. ЖЁСТКИЙ ОТСЕВ: не-вакансии (статьи, реклама, анонсы, резюме соискателей, шапки каналов)
+NON_VACANCY_TITLE_PATTERNS = [
+    r"стать аналитиком данных всего за",
+    r"выспался\. создал чат-бота",
+    r"\b2-дневный интенсив\b",
+    r"старт конкурса",
+    r"открытом вебинаре",
+    r"вебинар по менторству",
+    r"онлайн-конференция",
+    r"трендс 2027",
+    r"встречаемся на ai appsec",
+    r"список резюме",
+    r"дайджест резюме",
+    r"они уже здесь",
+    r"разыскивается работодатель",
+    r"всем привет! моё имя",
+    r"неделя в цифрах",
+    r"почти два месяца не писал сюда",
+    r"а к ним в команду можно\?",
+    r"кажется, у снега сегодня первый рабочий день",
+    r"«я устал, я ухожу…»",
+    r"5 слов, которые портят ваше резюме",
+    r"быть представителем интереснее, чем кажется",
+    r"пост альфа-банка",
+    r"сегодня весь день гуляем по офису",
+    r"пахать 5/2 за 80к в месяц",
+    r"год слушала, что не справляюсь",
+    r"пять красных флагов на собесе",
+    r"аузан уходит из деканов",
+    r"перешла из «фрутоняни» в группу компаний",
+    r"завершил экспедиционные съемки",
+    r"ai-first: от экспериментов к практике",
+    r"можно ли заменить ментора нейросетью",
+    r"какие филиалы сети стоит продвигать",
+    r"40 ux-решений для приложения",
+    r"как работает массовая рассылка",
+    r"зачем брендам объединять мини-игры",
+    r"чем измерять успех b2b-маркетинга",
+    r"как настроить мониторинг сайта",
+    r"за что платить блогеру",
+    r"как проверить ит-подрядчика",
+    r"как узнать, сколько продаж добавила реклама",
+    r"ии, найди мне нормальный референс",
+    r"какие навыки сегодня нужны специалистам",
+    r"рнф провел вебинар",
+    r"хочу поделиться интересной возможностью для тех, кто работает с 3d",
+]
+
+NON_VACANCY_EXACT_TITLES = [
+    "вдхл - вакансии для хороших людей",
+    "джобстер digital | маркетинг | вакансии и резюме",
+    "digitalhr (диджиталлэйчар): работа | вакансии | рекрутинг | стартапы",
+    "remocate: релокация, удалёнка, работа и вакансии",
+    "jobkz: вакансии / работа в казахстане",
+    "finder.work: работа и вакансии",
+]
+
+# 2. ЖЁСТКИЙ ОТСЕВ (HARD STOP): продажи, коммерция, торговцы и бытовой/непрофильный шум
+HARD_STOP_ROLE_PATTERNS = [
+    r"\bhead of sales\b",
+    r"\bsales director\b",
+    r"\bsales manager\b",
+    r"\bsdr manager\b",
+    r"\bsales development\b",
+    r"\bcloser\b",
+    r"менеджер по продажам",
+    r"руководитель отдела продаж",
+    r"директор по продажам",
+    r"коммерческий директор",
+    r"агент по привлечению клиентов",
+    r"специалист по продажам",
+    r"аккаунт[- ]менеджер",
+    r"\baccount manager\b",
     r"\bстаж[её]р\b",
     r"\bintern\b",
     r"\bпродавец[- ]консультант\b",
@@ -87,84 +159,111 @@ NOISE_TITLE_PATTERNS = [
     r"\bврач\b",
     r"\bучитель\b",
     r"\bинженер[- ]конструктор\b",
-    r"\bинженер\b",
     r"\bмедиабайер\b",
     r"\bавтор студенческих работ\b",
     r"\bбухгалтер\b",
     r"\bхореограф\b",
-    r"\bмедицинский эксперт\b",
-    r"\bсистемный аналитик\b",
-    r"\bадминистратор центра\b",
-    r"\bстрахования\b",
-    r"\bмонетизации сегментов\b",
     r"\bстример\b",
+    r"строительном проекте",
 ]
 
-# Высокий приоритет: СМИ/медиа, редактура, аналитика, лид/глава контент-фабрики/системы контента
-HIGH_PRIORITY_ROLE_PATTERNS = [
-    r"главн\w* редактор",
-    r"шеф[- ]редактор",
-    r"директор по контенту",
-    r"контент[- ]директор",
+# 3. РОЛИ ПО ПРОФИЛЮ (для расчёта критерия "Роль и функция", макс. 40 баллов)
+ROLE_TIER_1_PATTERNS = [
     r"head of content",
     r"chief content officer",
-    r"руководитель контент[- ]завод",
+    r"директор по контенту",
+    r"контент[- ]директор",
+    r"главн\w* редактор",
+    r"шеф[- ]редактор",
     r"глава контент[- ]завод",
+    r"руководитель контент[- ]завод",
     r"продюсер контент[- ]завод",
     r"куратор контент[- ]завод",
     r"руководитель направлени\w* контент",
     r"руководитель отдел\w* контент",
     r"руководитель группы медиааналитик",
-    r"медиааналитик",
-    r"журналист",
-    r"редактор сми",
+    r"заведующий редакцией",
+]
+
+ROLE_TIER_2_PATTERNS = [
     r"выпускающий редактор",
+    r"редактор сми",
+    r"редактор медиапроект",
     r"редактор новостей",
     r"редактор сайта",
-]
-
-# Профильный контент/тексты/редактура без продающего маркетинга и воронок
-CONTENT_CREATION_PATTERNS = [
-    r"редактор",
-    r"автор текстов",
-    r"копирайтер",
-    r"сценарист",
-    r"контент[- ]мейкер",
+    r"ai[- ]редактор",
+    r"редактор[- ]копирайтер",
+    r"автор лонгридов",
+    r"обозреватель",
+    r"журналист",
+    r"медиааналитик",
     r"контент[- ]продюсер",
-    r"аналитик",
+    r"продюсер блогеров",
+    r"редактор",
 ]
 
-# Маркеры "чистого контент-маркетинга / продаж / воронок / товарного SMM" — не удаляем, но понижаем
-PURE_CONTENT_MARKETING_PATTERNS = [
+ROLE_TIER_3_PATTERNS = [
+    r"копирайтер",
+    r"автор текстов",
+    r"сценарист",
+    r"контент[- ]менеджер",
+    r"контент[- ]мейкер",
+    r"контент[- ]креатор",
     r"контент[- ]маркетолог",
+    r"pr[- ]и контент",
+    r"smm",
+    r"influence[- ]менеджер",
+    r"обучени\w* нейросетей",
+    r"ai[- ]тренер",
+]
+
+NON_CONTENT_LOW_ROLE_PATTERNS = [
+    r"таргетолог",
+    r"платному трафику",
+    r"google ads",
+    r"дизайнер",
+    r"designer",
+    r"видеограф",
+    r"монтаж[её]р",
+    r"vfx",
+    r"переводчик",
+    r"data scientist",
+    r"product analyst",
+    r"продуктовый аналитик",
+    r"retention",
+    r"support manager",
+    r"координатор промокампаний",
+    r"менеджер продукта",
+    r"\bcio\b",
+    r"экономист",
+    r"директор службы доставки",
+    r"клиентского сервиса",
+    r"баинг[- ]менеджер",
+]
+
+PURE_MARKETING_PENALTY_PATTERNS = [
     r"контент[- ]маркетинг",
+    r"контент[- ]маркетолог",
     r"продающ\w* текст",
     r"воронка\w* продаж",
     r"лидогенерац",
     r"перформанс",
     r"performance",
-    r"маркетплейс",
     r"наклейк\w* логотип",
-    r"товар\w* знак",
-    r"бренд[- ]менеджер",
     r"smm[- ]менеджер",
-    r"smm специалист",
-    r"head of smm",
-    r"smm[- ]стратег",
+    r"smm[- ]специалист",
+    r"smm для артиста",
+    r"в smm-агентство",
 ]
 
-MEDIA_CONTEXT_PATTERNS = [
-    r"\bсми\b",
-    r"медиа",
-    r"редакц",
-    r"журналист",
-    r"бренд[- ]медиа",
-    r"стать",
-    r"лонгрид",
-    r"новост",
-    r"ии",
-    r"\bai\b",
-    r"нейросет",
+DIGEST_POST_PATTERNS = [
+    r"подборка вакансий",
+    r"подборка:",
+    r"лучшее за неделю",
+    r"вакансии в мтс",
+    r"подборка 01\.tech",
+    r"подборка c-level",
+    r"вакансии в продажах",
 ]
 
 
@@ -297,7 +396,7 @@ def fetch_gmail_vacancies_12h(
                         "source": f"Gmail ({sender[:35]})",
                         "url": clean_url,
                         "summary": f"Найдено в рассылке «{subject}» за окно {hours_window} ч.",
-                        "raw_text": f"{subject}\n{body_text[:1500]}",
+                        "raw_text": f"{subject}\n{body_text[:2500]}",
                         "published_at": datetime.now(timezone.utc).isoformat(),
                     }
                 )
@@ -327,7 +426,7 @@ def fetch_workspace_rss_12h(rss_url: str = WORKSPACE_RSS_URL, hours_window: int 
                         "title": title,
                         "source": "RSS Workspace.ru",
                         "url": link.split("?")[0].strip(),
-                        "summary": desc[:320] if desc else "Вакансия из RSS-ленты Workspace.ru.",
+                        "summary": desc[:450] if desc else "Вакансия из RSS-ленты Workspace.ru.",
                         "raw_text": f"{title}\n{desc}",
                         "published_at": datetime.now(timezone.utc).isoformat(),
                     }
@@ -338,7 +437,7 @@ def fetch_workspace_rss_12h(rss_url: str = WORKSPACE_RSS_URL, hours_window: int 
 
 
 def fetch_telegram_public_preview_12h(channels: list[str], hours_window: int = 12) -> list[dict]:
-    """Собирает свежие публикации из публичных веб-превью (t.me/s/<channel>)."""
+    """Собирает свежие публикации из публичных веб-превью (t.me/s/<channel>) без ранней обрезки текста."""
     items: list[dict] = []
     cutoff_utc = datetime.now(timezone.utc) - timedelta(hours=hours_window)
 
@@ -356,7 +455,7 @@ def fetch_telegram_public_preview_12h(channels: list[str], hours_window: int = 1
             if not msg_blocks:
                 msg_blocks = re.findall(r'<div class="tgme_widget_message_text[^"]*"[^>]*>(.*?)</div>', html, flags=re.S)
 
-            for blk in msg_blocks[-10:]:
+            for blk in msg_blocks[-12:]:
                 dt_match = re.search(r'datetime="([^"]+)"', blk)
                 if dt_match:
                     try:
@@ -376,16 +475,16 @@ def fetch_telegram_public_preview_12h(channels: list[str], hours_window: int = 1
                 if not clean_txt:
                     continue
 
-                first_line = next((ln.strip() for ln in clean_txt.splitlines() if ln.strip()), clean_txt[:90])
+                first_line = next((ln.strip() for ln in clean_txt.splitlines() if ln.strip()), clean_txt[:110])
                 post_link_m = re.search(rf"https?://t\.me/{re.escape(ch)}/\d+", blk)
                 post_url = post_link_m.group(0) if post_link_m else f"https://t.me/{ch}"
 
                 items.append(
                     {
-                        "title": first_line[:110],
+                        "title": first_line[:120],
                         "source": f"Telegram @{ch}",
                         "url": post_url,
-                        "summary": clean_txt[:300],
+                        "summary": clean_txt[:500],
                         "raw_text": clean_txt,
                         "published_at": dt_match.group(1) if dt_match else datetime.now(timezone.utc).isoformat(),
                     }
@@ -396,95 +495,244 @@ def fetch_telegram_public_preview_12h(channels: list[str], hours_window: int = 1
     return items
 
 
-def deduplicate_items(items: list[dict], seen_urls: set[str]) -> tuple[list[dict], set[str]]:
-    """Удаляет дубликаты внутри запуска и уже отправленные ранее вакансии."""
+def is_non_vacancy(item: dict) -> tuple[bool, str]:
+    """Отсекает статьи, рекламу, вебинары, резюме соискателей и шапки каналов до скоринга."""
+    title_low = re.sub(r"\s+", " ", (item.get("title") or "").strip().lower())
+    raw_low = (item.get("raw_text") or "").lower()
+
+    if title_low in NON_VACANCY_EXACT_TITLES:
+        return True, "Шапка/репост канала"
+
+    for pat in NON_VACANCY_TITLE_PATTERNS:
+        if re.search(pat, title_low, flags=re.I):
+            return True, "Статья, реклама или анонс мероприятия"
+
+    if re.search(r"\bищу работу\b|\bрезюме соискателя\b|\bмое портфолио\b", raw_low[:400], flags=re.I):
+        return True, "Резюме соискателя, а не вакансия"
+
+    return False, ""
+
+
+def is_hard_stop_role(item: dict) -> tuple[bool, str]:
+    """Полностью исключает продажи, коммерцию, торговцев (Head of Sales и т. п.) и бытовой шум."""
+    title_low = (item.get("title") or "").lower()
+    for pat in HARD_STOP_ROLE_PATTERNS:
+        if re.search(pat, title_low, flags=re.I):
+            return True, "Стоп-фактор роли: продажи/коммерция или непрофильная позиция"
+    return False, ""
+
+
+def _normalize_dedup_key(item: dict) -> str:
+    title = (item.get("title") or "").lower()
+    title = re.sub(r"https?://\S+", "", title)
+    title = re.sub(r"\(hh\.ru #\d+\)", "", title)
+    title = re.sub(r"[^a-zа-яё0-9\s]", " ", title)
+    tokens = [w for w in title.split() if len(w) > 2][:7]
+    return " ".join(tokens)
+
+
+def deduplicate_items(items: list[dict], seen_urls: set[str]) -> tuple[list[dict], set[str], int]:
+    """
+    Удаляет дубликаты между запусками и склеивает кросспосты внутри одного окна,
+    сохраняя ссылки на дубли в поле duplicate_sources.
+    """
     unique: list[dict] = []
     updated_seen = set(seen_urls)
-    seen_keys_in_run: set[str] = set()
+    by_norm_key: dict[str, dict] = {}
+    merged_dups = 0
 
     for it in items:
-        url = (it.get("url") or "").strip().lower()
-        title_norm = re.sub(r"\s+", " ", (it.get("title") or "").strip().lower())
-        key = url or title_norm
-        if not key:
+        url = (it.get("url") or "").strip()
+        url_low = url.lower()
+        norm_key = _normalize_dedup_key(it)
+
+        if url_low and url_low in updated_seen:
             continue
-        if key in updated_seen or key in seen_keys_in_run:
+
+        if norm_key and norm_key in by_norm_key:
+            primary = by_norm_key[norm_key]
+            dup_list = primary.setdefault("duplicate_sources", [])
+            src_label = it.get("source", "")
+            if url and url != primary.get("url") and all(d.get("url") != url for d in dup_list):
+                dup_list.append({"source": src_label, "url": url})
+            if url_low:
+                updated_seen.add(url_low)
+            merged_dups += 1
             continue
-        seen_keys_in_run.add(key)
-        updated_seen.add(key)
+
+        if url_low:
+            updated_seen.add(url_low)
+        if norm_key:
+            by_norm_key[norm_key] = it
         unique.append(it)
 
-    return unique, updated_seen
+    return unique, updated_seen, merged_dups
 
 
-def score_item_against_profile(item: dict) -> dict:
+def score_item_100(item: dict) -> dict:
     """
-    Оценивает вакансию по профилю:
-    - приоритет: СМИ/медиа, редактура/аналитика, руководящие роли (Head of Content / глава контент-завода / система контента)
-      или создание контента без продающих текстов и воронок продаж;
-    - чистый контент-маркетинг / продажи / воронки / товарный SMM не отбрасываются совсем, но понижаются по приоритету.
+    100-балльная модель оценки под резюме №1 и №2:
+    1) Роль и функция (до 40)
+    2) Уровень (до 15)
+    3) Локация и формат (до 20)
+    4) Навыки и платформы (до 15)
+    5) Условия (до 10; если оплата не указана — нейтральные 4 балла)
+    Правило: если роль <= 6/40, итог ограничен 30 баллами.
     """
-    text_blob = f"{item.get('title', '')} {item.get('summary', '')} {item.get('raw_text', '')}".lower()
     title_low = (item.get("title") or "").lower()
+    text_blob = f"{item.get('title', '')} {item.get('summary', '')} {item.get('raw_text', '')}".lower()
 
-    if any(re.search(pat, title_low, flags=re.I) for pat in NOISE_TITLE_PATTERNS):
-        return {**item, "score": 2, "bucket": "skip", "flag_status": "stop_factor", "reasons": "Отсеяно по стоп-фактору роли/направления."}
+    # --- 1. РОЛЬ И ФУНКЦИЯ (макс. 40) ---
+    role_score = 4
+    role_note = "роль слабо пересекается с редакцией и контентом"
 
-    high_role_hits = sum(1 for pat in HIGH_PRIORITY_ROLE_PATTERNS if re.search(pat, text_blob, flags=re.I))
-    content_hits = sum(1 for pat in CONTENT_CREATION_PATTERNS if re.search(pat, text_blob, flags=re.I))
-    media_hits = sum(1 for pat in MEDIA_CONTEXT_PATTERNS if re.search(pat, text_blob, flags=re.I))
-    marketing_hits = sum(1 for pat in PURE_CONTENT_MARKETING_PATTERNS if re.search(pat, text_blob, flags=re.I))
+    if any(re.search(p, title_low, flags=re.I) for p in ROLE_TIER_1_PATTERNS):
+        role_score = 34
+        role_note = "руководящая редакторская/контентная роль (Head of Content / главред / шеф-редактор / контент-завод)"
+    elif any(re.search(p, title_low, flags=re.I) for p in ROLE_TIER_2_PATTERNS):
+        role_score = 28
+        role_note = "профильная редакторская/медийная или AI-редакционная роль"
+    elif any(re.search(p, title_low, flags=re.I) for p in ROLE_TIER_3_PATTERNS):
+        role_score = 22
+        role_note = "смежная контентная/текстовая или медийная роль"
+    elif any(re.search(p, title_low, flags=re.I) for p in NON_CONTENT_LOW_ROLE_PATTERNS):
+        role_score = 4
+        role_note = "непрофильная функция (таргет, дизайн, монтаж, перевод или ИТ/продукт)"
+    elif any(re.search(p, text_blob[:500], flags=re.I) for p in ROLE_TIER_1_PATTERNS):
+        role_score = 26
+        role_note = "есть задачи управления контентом/редакцией"
+    elif any(re.search(p, text_blob[:500], flags=re.I) for p in ROLE_TIER_2_PATTERNS):
+        role_score = 20
+        role_note = "есть редакторские или контентные задачи"
 
-    # Базовый балл: приоритет медиа/редактуре/лид-ролям и контенту без "воронок/продаж"
-    score = 4
-    if high_role_hits > 0:
-        score += 3 + min(high_role_hits, 2)
-    elif content_hits > 0:
-        score += 2
+    # Понижение за чистый контент-маркетинг, воронки продаж и товарный SMM (не отбрасываем, но снижаем приоритет)
+    is_marketing_heavy = any(re.search(p, text_blob, flags=re.I) for p in PURE_MARKETING_PENALTY_PATTERNS)
+    if is_marketing_heavy and role_score > 14:
+        role_score = max(14, role_score - 8)
+        role_note += "; понижено из-за уклона в контент-маркетинг/воронки/SMM"
 
-    if media_hits > 0:
-        score += min(media_hits, 2)
+    # Бонус за явный медийный контекст (СМИ, редакция, бренд-медиа, YouTube/подкаст)
+    if any(re.search(p, text_blob, flags=re.I) for p in [r"\bсми\b", r"бренд[- ]медиа", r"редакц", r"подкаст", r"youtube"]):
+        role_score = min(40, role_score + 2)
 
-    has_spb = any(s in text_blob for s in ["санкт-петербург", "спб", "петербург"])
-    has_remote = any(r in text_blob for r in ["удален", "удалён", "remote", "дистанц"])
-    if has_spb or has_remote:
-        score += 1
-
-    # Понижаем чистый контент-маркетинг / воронки / продажи / товарный SMM, но не удаляем полностью
-    penalty = 0
-    if marketing_hits > 0:
-        penalty = 2 + min(marketing_hits, 2)
-        score -= penalty
-
-    score = max(1, min(10, score))
-
-    has_other_city = any(c in text_blob for c in ["сочи", "краснодар", "екатеринбург", "новосибирск", "казань", "саратов", "орел", "орёл", "тамбов"])
-    if has_other_city and not has_remote and not has_spb:
-        score = max(5, min(6, score))
-        flag_status = "high_alert"
-        reasons = "Указан другой город без явной отметки удалёнки — проверить формат работы."
-    elif marketing_hits > 0 and high_role_hits == 0:
-        flag_status = "lower_priority_marketing"
-        reasons = "Понижено в приоритете: акцент на контент-маркетинге/продвижении/продажах; уточнить формат и задачи."
-    elif "москва" in text_blob and not has_remote and not has_spb:
-        flag_status = "check_details"
-        reasons = "Приоритетный профиль (медиа/редактура/система контента), но указана Москва — уточнить удалёнку и условия."
+    # --- 2. УРОВЕНЬ (макс. 15) ---
+    level_score = 7
+    if any(re.search(p, text_blob, flags=re.I) for p in [r"head of", r"директор", r"главн\w* редактор", r"шеф[- ]редактор", r"руководитель", r"lead", r"тимлид", r"глава"]):
+        level_score = 14
+    elif any(re.search(p, text_blob, flags=re.I) for p in [r"senior", r"ведущий", r"продюсер", r"стратег"]):
+        level_score = 10
+    elif any(re.search(p, text_blob, flags=re.I) for p in [r"junior", r"младший", r"начинающ", r"опыт.*1[-–]3", r"без опыта"]):
+        level_score = 3
     else:
-        flag_status = "check_details"
-        reasons = "Приоритетный профиль (медиа/редактура/контент); уточнить детали задач и оплату."
+        level_score = 6
 
-    bucket = "skip"
-    if score >= 8:
-        bucket = "strong"
-    elif score >= 5:
-        bucket = "borderline"
+    # --- 3. ЛОКАЦИЯ И ФОРМАТ (макс. 20) ---
+    has_remote = any(re.search(p, text_blob, flags=re.I) for p in [r"удален", r"удалён", r"remote", r"дистанц", r"из любой точки"])
+    has_spb = any(re.search(p, text_blob, flags=re.I) for p in [r"санкт-петербург", r"\bспб\b", r"петербург"])
+    has_reloc = any(re.search(p, text_blob, flags=re.I) for p in [r"релокац", r"переезд", r"шанхай", r"цюрих", r"тель-авив", r"астана", r"алматы"])
+    has_moscow_or_other_city = any(re.search(p, text_blob, flags=re.I) for p in [r"москв", r"казан", r"краснодар", r"екатеринбург", r"новосибирск", r"иннополис"])
+
+    if has_remote or has_spb:
+        location_score = 20
+        loc_note = "удалённо или Санкт-Петербург"
+    elif has_reloc:
+        location_score = 2
+        loc_note = "требуется переезд/другая страна (в резюме: не готов к переезду)"
+    elif has_moscow_or_other_city:
+        location_score = 6
+        loc_note = "офис/гибрид в другом городе без явной удалёнки"
+    else:
+        location_score = 12
+        loc_note = "локация и формат не указаны"
+
+    # --- 4. НАВЫКИ И ПЛАТФОРМЫ (макс. 15) ---
+    skills_score = 4
+    matched_skills = []
+    skill_checks = [
+        (r"\bseo\b|\bgeo\b", 3, "SEO/GEO"),
+        (r"\bai\b|\bии\b|нейросет|chatgpt|llm", 3, "AI в редакции"),
+        (r"дзен|\bvc\b|telegram|тг[- ]канал|tenchat", 3, "Дзен/VC/Telegram"),
+        (r"видео|youtube|reels|shorts|tiktok|подкаст", 2, "видео/подкасты"),
+        (r"метрик|google analytics|\bga\b|аналитик", 2, "аналитика"),
+        (r"wordpress|tilda|\bcms\b", 2, "CMS"),
+    ]
+    for pat, pts, label in skill_checks:
+        if re.search(pat, text_blob, flags=re.I):
+            skills_score += pts
+            matched_skills.append(label)
+
+    # Учёт английского B2: если требуют свободное написание статей/лонгридов на английском — риск/штраф
+    if re.search(r"(стат\w*|копирайт\w*|текст\w*).{0,35}английск|на английском", text_blob, flags=re.I):
+        skills_score = max(4, skills_score - 3)
+        matched_skills.append("риск по английскому (у вас B2)")
+
+    skills_score = min(15, skills_score)
+
+    # --- 5. УСЛОВИЯ И ОПЛАТА (макс. 10; нейтральные 4 если не указано) ---
+    cond_score = 4
+    cond_note = "оплата не указана (нейтральные 4/10)"
+
+    usd_match = re.search(r"\$\s*(\d[\d\s]{2,5})", text_blob)
+    rub_matches = [int(x.replace(" ", "")) for x in re.findall(r"(\d{2,3}[\s]?\d{3})\s*(?:₽|руб|р\.)", text_blob)]
+    k_rub_matches = [int(x) * 1000 for x in re.findall(r"(\d{2,3})\s*к\b", text_blob)]
+    all_rub = [v for v in (rub_matches + k_rub_matches) if 20000 <= v <= 2000000]
+
+    if usd_match:
+        usd_val = int(usd_match.group(1).replace(" ", ""))
+        if usd_val >= 2000:
+            cond_score = 9
+            cond_note = f"от ${usd_val} (соответствует ориентиру 2 000 $)"
+        else:
+            cond_score = 6
+            cond_note = f"${usd_val}"
+    elif all_rub:
+        max_rub = max(all_rub)
+        if max_rub >= 250000:
+            cond_score = 10
+            cond_note = f"до {max_rub:,} ₽ (выше ориентира 2 000 $)".replace(",", " ")
+        elif max_rub >= 170000:
+            cond_score = 8
+            cond_note = f"до {max_rub:,} ₽ (близко к 2 000 $)".replace(",", " ")
+        elif max_rub >= 130000:
+            cond_score = 6
+            cond_note = f"до {max_rub:,} ₽ (нижняя граница ожиданий)".replace(",", " ")
+        else:
+            cond_score = 3
+            cond_note = f"до {max_rub:,} ₽ (ниже ожиданий)".replace(",", " ")
+
+    raw_total = role_score + level_score + location_score + skills_score + cond_score
+    capped = False
+    if role_score <= 6 and raw_total > 30:
+        total_score = 30
+        capped = True
+    else:
+        total_score = min(100, raw_total)
+
+    is_digest_post = any(re.search(p, title_low, flags=re.I) for p in DIGEST_POST_PATTERNS)
+
+    tier = "D"
+    if total_score >= 70:
+        tier = "A"
+    elif total_score >= 55:
+        tier = "B"
+    elif total_score >= 40:
+        tier = "C"
+
+    breakdown = f"Роль {role_score}/40 · Уровень {level_score}/15 · Локация {location_score}/20 · Навыки {skills_score}/15 · Условия {cond_score}/10"
+    if capped:
+        breakdown += " · ограничено 30 (роль не по профилю)"
+
+    skills_str = f" Навыки: {', '.join(matched_skills)}." if matched_skills else ""
+    digest_note = " Пост-подборка: проверьте позиции внутри поста." if is_digest_post else ""
+    explanation = f"{role_note.capitalize()}; {loc_note}; {cond_note}.{skills_str}{digest_note}"
 
     return {
         **item,
-        "score": score,
-        "bucket": bucket,
-        "flag_status": flag_status,
-        "reasons": reasons,
+        "score": total_score,
+        "tier": tier,
+        "breakdown": breakdown,
+        "explanation": explanation,
+        "is_digest_post": is_digest_post,
     }
 
 
@@ -493,8 +741,8 @@ def collect_and_score_12h(
     state_path: str | Path = DEFAULT_STATE_PATH,
     include_medium_tg: bool = True,
     hours_window: int = 12,
-) -> tuple[list[dict], list[dict], dict]:
-    """Собирает свежие вакансии из Gmail, RSS Workspace и Telegram за hours_window часов и оценивает их."""
+) -> tuple[list[dict], list[dict], list[dict], dict]:
+    """Собирает свежие вакансии, отсекает не-вакансии и продажи (Head of Sales и др.), оценивает по 100-балльной шкале."""
     load_env_file(env_path)
 
     gmail_user = os.getenv("GMAIL_USER", "").strip()
@@ -523,24 +771,39 @@ def collect_and_score_12h(
     raw_items.extend(fetch_workspace_rss_12h(WORKSPACE_RSS_URL, hours_window=hours_window))
     raw_items.extend(fetch_telegram_public_preview_12h(tg_list, hours_window=hours_window))
 
-    unique_items, updated_seen = deduplicate_items(raw_items, seen_set)
+    unique_items, updated_seen, merged_dups = deduplicate_items(raw_items, seen_set)
 
-    strong_items: list[dict] = []
-    borderline_items: list[dict] = []
-    skipped_count = 0
+    tier_a: list[dict] = []
+    tier_b: list[dict] = []
+    tier_c: list[dict] = []
+    non_vacancies_count = 0
+    hard_stopped_count = 0
+    low_score_count = 0
 
     for raw_it in unique_items:
-        scored = score_item_against_profile(raw_it)
-        if scored["bucket"] == "strong":
-            strong_items.append(scored)
-        elif scored["bucket"] == "borderline":
-            borderline_items.append(scored)
-        else:
-            skipped_count += 1
+        non_vac, _ = is_non_vacancy(raw_it)
+        if non_vac:
+            non_vacancies_count += 1
+            continue
 
-    # Сортируем по убыванию оценки, чтобы сильные и приоритетные позиции шли первыми
-    strong_items.sort(key=lambda x: x.get("score", 0), reverse=True)
-    borderline_items.sort(key=lambda x: x.get("score", 0), reverse=True)
+        hard_stop, _ = is_hard_stop_role(raw_it)
+        if hard_stop:
+            hard_stopped_count += 1
+            continue
+
+        scored = score_item_100(raw_it)
+        if scored["tier"] == "A":
+            tier_a.append(scored)
+        elif scored["tier"] == "B":
+            tier_b.append(scored)
+        elif scored["tier"] == "C":
+            tier_c.append(scored)
+        else:
+            low_score_count += 1
+
+    tier_a.sort(key=lambda x: x.get("score", 0), reverse=True)
+    tier_b.sort(key=lambda x: x.get("score", 0), reverse=True)
+    tier_c.sort(key=lambda x: x.get("score", 0), reverse=True)
 
     state["seen_urls"] = list(updated_seen)[-1500:]
     state_file.parent.mkdir(parents=True, exist_ok=True)
@@ -548,62 +811,92 @@ def collect_and_score_12h(
 
     stats = {
         "raw_collected": len(raw_items),
-        "unique_new": len(unique_items),
-        "strong": len(strong_items),
-        "borderline": len(borderline_items),
-        "skipped": skipped_count,
+        "merged_duplicates": merged_dups,
+        "non_vacancies_excluded": non_vacancies_count,
+        "hard_stopped_sales_etc": hard_stopped_count,
+        "tier_A_70_100": len(tier_a),
+        "tier_B_55_69": len(tier_b),
+        "tier_C_40_54": len(tier_c),
+        "tier_D_under_40_hidden": low_score_count,
     }
-    return strong_items, borderline_items, stats
+    return tier_a, tier_b, tier_c, stats
 
 
-def format_digest_html_and_text(strong_items: list[dict], borderline_items: list[dict], window_label: str) -> tuple[str, str]:
-    """Формирует текстовую и HTML-версию письма для Gmail."""
-    text_lines = [f"Дайджест вакансий ({window_label})", "=" * 40, ""]
+def format_digest_html_and_text(
+    tier_a: list[dict],
+    tier_b: list[dict],
+    tier_c: list[dict],
+    stats: dict,
+    window_label: str,
+) -> tuple[str, str]:
+    """Формирует письмо в формате 100-балльного ранжирования (секции A, B, C + сводка отсева)."""
+    text_lines = [
+        f"Дайджест вакансий ({window_label})",
+        "=" * 44,
+        f"A (70–100): {len(tier_a)} | B (55–69): {len(tier_b)} | C (40–54): {len(tier_c)}",
+        f"Отсеяно: не-вакансий — {stats.get('non_vacancies_excluded', 0)}, продажи/стоп-факторы — {stats.get('hard_stopped_sales_etc', 0)}, не по профилю (<40) — {stats.get('tier_D_under_40_hidden', 0)}, дублей склеено — {stats.get('merged_duplicates', 0)}",
+        "",
+    ]
+
     html_parts = [
         f"<h2>Дайджест вакансий ({window_label})</h2>",
-        f"<p>Сильных совпадений: <b>{len(strong_items)}</b> | На заметку: <b>{len(borderline_items)}</b></p>",
+        f"<p><b>A. Идеально (70–100):</b> {len(tier_a)} &nbsp;|&nbsp; "
+        f"<b>B. Хорошо (55–69):</b> {len(tier_b)} &nbsp;|&nbsp; "
+        f"<b>C. С оговорками (40–54):</b> {len(tier_c)}</p>",
+        f"<p><small>Отсеяно автоматически: не-вакансий — {stats.get('non_vacancies_excluded', 0)}, "
+        f"продажи и стоп-факторы — {stats.get('hard_stopped_sales_etc', 0)}, "
+        f"не по профилю (&lt;40) — {stats.get('tier_D_under_40_hidden', 0)}, "
+        f"дублей склеено — {stats.get('merged_duplicates', 0)}.</small></p>",
     ]
+
+    counter = [0]
 
     def _add_section(title: str, items: list[dict]) -> None:
         text_lines.append(title)
-        text_lines.append("-" * 30)
+        text_lines.append("-" * 36)
         html_parts.append(f"<h3>{title}</h3>")
         if not items:
             text_lines.append("Нет новых позиций в этом окне.\n")
             html_parts.append("<p><i>Нет новых позиций в этом окне.</i></p>")
             return
-        html_parts.append("<ul>")
-        for idx, item in enumerate(items, 1):
+        for item in items:
+            counter[0] += 1
+            num = counter[0]
             role = item.get("title", "Без названия")
             source = item.get("source", "")
             url = item.get("url", "")
-            score = item.get("score", "—")
-            flag = item.get("flag_status", "clean")
-            summary = item.get("summary", "")
-            reasons = item.get("reasons", "")
+            score = item.get("score", 0)
+            breakdown = item.get("breakdown", "")
+            explanation = item.get("explanation", "")
+            dups = item.get("duplicate_sources") or []
 
-            text_lines.append(f"{idx}. {role} [{score}/10 | {flag}]")
-            if source:
-                text_lines.append(f"   Источник: {source}")
-            if summary:
-                text_lines.append(f"   Суть: {summary}")
-            if reasons:
-                text_lines.append(f"   Детали/флаги: {reasons}")
+            text_lines.append(f"{num}. {role} — {score}/100")
+            text_lines.append(f"   {breakdown}")
+            text_lines.append(f"   Источник: {source}")
+            text_lines.append(f"   {explanation}")
             if url:
                 text_lines.append(f"   Ссылка: {url}")
+            if dups:
+                dup_str = ", ".join(f"{d.get('source')} ({d.get('url')})" for d in dups)
+                text_lines.append(f"   Дубль в других каналах: {dup_str}")
             text_lines.append("")
 
             link_html = f'<a href="{url}">{role}</a>' if url else role
-            html_parts.append(
-                f"<li><b>{link_html}</b> — оценка <b>{score}/10</b> ({flag})<br>"
-                f"<small>Источник: {source}</small><br>"
-                f"{summary}<br>"
-                f"<i>{reasons}</i></li><br>"
-            )
-        html_parts.append("</ul>")
+            dup_html = ""
+            if dups:
+                dup_links = ", ".join(f'<a href="{d.get("url")}">{d.get("source")}</a>' for d in dups)
+                dup_html = f"<br><small>Дубль в других каналах: {dup_links}</small>"
 
-    _add_section("1. Сильное совпадение (8–10)", strong_items)
-    _add_section("2. На заметку / спорные (5–7)", borderline_items)
+            html_parts.append(
+                f"<p><b>{num}. {link_html}</b> — <b>{score}/100</b><br>"
+                f"<small>{breakdown}</small><br>"
+                f"<small>Источник: {source}</small><br>"
+                f"<i>{explanation}</i>{dup_html}</p>"
+            )
+
+    _add_section("A. Идеально и очень близко (70–100)", tier_a)
+    _add_section("B. Хорошо, стоит откликаться (55–69)", tier_b)
+    _add_section("C. С оговорками (40–54)", tier_c)
 
     return "\n".join(text_lines), "\n".join(html_parts)
 
@@ -650,13 +943,15 @@ def send_telegram_notice(bot_token: str, chat_id: str, message: str) -> dict:
 
 
 def deliver_digest(
-    strong_items: list[dict],
-    borderline_items: list[dict],
+    tier_a: list[dict],
+    tier_b: list[dict],
+    tier_c: list[dict],
+    stats: dict,
     state_path: str | Path = BASE_DIR / "data" / "delivery_state.json",
     env_path: str | Path = DEFAULT_CONFIG_PATH,
     notify_when_empty: bool = True,
 ) -> dict:
-    """Отправляет полный дайджест в Gmail и короткое уведомление в Telegram."""
+    """Отправляет дайджест A/B/C в Gmail и сводку в Telegram."""
     loaded_path = load_env_file(env_path)
 
     gmail_user = os.getenv("GMAIL_USER", "").strip()
@@ -676,20 +971,20 @@ def deliver_digest(
     if state_file.exists():
         state = json.loads(state_file.read_text(encoding="utf-8"))
 
-    if not strong_items and not borderline_items:
+    if not tier_a and not tier_b and not tier_c:
         if notify_when_empty and tg_token and tg_chat_id and state.get("last_empty_window") != window_id:
             send_telegram_notice(
                 tg_token,
                 tg_chat_id,
-                f"Дайджест вакансий ({window_label}): за последние 12 ч новых релевантных вакансий нет, письмо в Gmail не отправлялось.",
+                f"Дайджест вакансий ({window_label}): за последние 12 ч новых позиций уровня A/B/C нет, письмо в Gmail не отправлялось.",
             )
             state["last_empty_window"] = window_id
             state_file.parent.mkdir(parents=True, exist_ok=True)
             state_file.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
         return {"status": "empty", "window_id": window_id, "config_path": str(loaded_path)}
 
-    subject = f"Дайджест вакансий (12 ч): {len(strong_items)} сильных, {len(borderline_items)} на заметку — {now_utc.strftime('%d.%m')}"
-    text_body, html_body = format_digest_html_and_text(strong_items, borderline_items, window_label)
+    subject = f"Дайджест вакансий (12 ч): A={len(tier_a)}, B={len(tier_b)}, C={len(tier_c)} — {now_utc.strftime('%d.%m')}"
+    text_body, html_body = format_digest_html_and_text(tier_a, tier_b, tier_c, stats, window_label)
 
     if state.get("last_emailed_window") != window_id:
         if not gmail_user or not gmail_pass:
@@ -702,10 +997,11 @@ def deliver_digest(
     if state.get("last_notified_window") != window_id:
         if not tg_token or not tg_chat_id:
             raise RuntimeError(f"Не заданы TG_BOT_TOKEN или TG_CHAT_ID в {loaded_path}")
-        top_titles = [f"• {x.get('title', 'Вакансия')}" for x in (strong_items[:3] or borderline_items[:3])]
+        top_source = tier_a[:3] or tier_b[:3] or tier_c[:3]
+        top_titles = [f"• [{x.get('score')}/100] {x.get('title', 'Вакансия')}" for x in top_source]
         tg_msg = (
             f"Дайджест вакансий отправлен в Gmail ({gmail_user}).\n"
-            f"Сильных: {len(strong_items)} | На заметку: {len(borderline_items)}\n\n"
+            f"A (70–100): {len(tier_a)} | B (55–69): {len(tier_b)} | C (40–54): {len(tier_c)}\n\n"
             + "\n".join(top_titles)
         )
         send_telegram_notice(tg_token, tg_chat_id, tg_msg)
@@ -717,13 +1013,14 @@ def deliver_digest(
         "status": "delivered",
         "window_id": window_id,
         "config_path": str(loaded_path),
-        "strong": len(strong_items),
-        "borderline": len(borderline_items),
+        "A": len(tier_a),
+        "B": len(tier_b),
+        "C": len(tier_c),
     }
 
 
 if __name__ == "__main__":
-    strong, borderline, stats = collect_and_score_12h(hours_window=12, include_medium_tg=True)
+    a_items, b_items, c_items, stats = collect_and_score_12h(hours_window=12, include_medium_tg=True)
     print("Статистика сбора и отбора:", stats)
-    res = deliver_digest(strong, borderline)
+    res = deliver_digest(a_items, b_items, c_items, stats)
     print("Результат доставки:", res)
