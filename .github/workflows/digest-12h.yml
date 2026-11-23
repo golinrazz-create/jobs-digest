@@ -21,18 +21,11 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Create config.env from GitHub Secrets
+      - name: Create config.env from GitHub Secret JOBS_DIGEST
         shell: bash
         run: |
-          cat <<'EOF' > config.env
-          GMAIL_USER=${{ secrets.GMAIL_USER }}
-          GMAIL_APP_PASSWORD=${{ secrets.GMAIL_APP_PASSWORD }}
-          GMAIL_LABEL=${{ secrets.GMAIL_LABEL }}
-          TG_BOT_TOKEN=${{ secrets.TG_BOT_TOKEN }}
-          TG_CHAT_ID=${{ secrets.TG_CHAT_ID }}
-          TG_API_ID=${{ secrets.TG_API_ID }}
-          TG_API_HASH=${{ secrets.TG_API_HASH }}
-          EOF
+          printf '%s
+' "${{ secrets.JOBS_DIGEST }}" > config.env
 
       - name: Run digest script
         env:
