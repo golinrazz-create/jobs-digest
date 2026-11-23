@@ -24,8 +24,7 @@ jobs:
       - name: Create config.env from GitHub Secret JOBS_DIGEST
         shell: bash
         run: |
-          printf '%s
-' "${{ secrets.JOBS_DIGEST }}" > config.env
+          printf '%s\n' "${{ secrets.JOBS_DIGEST }}" > config.env
 
       - name: Run digest script
         env:
