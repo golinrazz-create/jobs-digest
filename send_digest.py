@@ -67,7 +67,6 @@ TG_MED_CHANNELS = [
 ]
 WORKSPACE_RSS_URL = "http://feeds.feedburner.com/workspacevacancies"
 
-# 1. ЖЁСТКИЙ ОТСЕВ: не-вакансии (статьи, реклама, анонсы, резюме соискателей, шапки каналов)
 NON_VACANCY_TITLE_PATTERNS = [
     r"стать аналитиком данных всего за",
     r"выспался\. создал чат-бота",
@@ -124,7 +123,6 @@ NON_VACANCY_EXACT_TITLES = [
     "finder.work: работа и вакансии",
 ]
 
-# 2. ЖЁСТКИЙ ОТСЕВ (HARD STOP): продажи, коммерция, торговцы и бытовой/непрофильный шум
 HARD_STOP_ROLE_PATTERNS = [
     r"\bhead of sales\b",
     r"\bsales director\b",
@@ -167,7 +165,6 @@ HARD_STOP_ROLE_PATTERNS = [
     r"строительном проекте",
 ]
 
-# 3. РОЛИ ПО ПРОФИЛЮ (для расчёта критерия "Роль и функция", макс. 40 баллов)
 ROLE_TIER_1_PATTERNS = [
     r"head of content",
     r"chief content officer",
@@ -286,13 +283,27 @@ def load_env_file(env_path: str | Path = DEFAULT_CONFIG_PATH) -> Path:
     return p
 
 
+def _safe_decode_bytes(payload: bytes | str | None, charset: str | None = None) -> str:
+    if payload is None:
+        return ""
+    if isinstance(payload, str):
+        return payload
+    enc = (charset or "utf-8").strip()
+    if enc.lower() in ("unknown-8bit", "unknown8bit", "x-unknown", "default_charset"):
+        enc = "latin-1"
+    try:
+        return payload.decode(enc, errors="replace")
+    except LookupError:
+        return payload.decode("latin-1", errors="replace")
+
+
 def _decode_mime_words(raw_val: str | None) -> str:
     if not raw_val:
         return ""
     parts = []
     for chunk, charset in decode_header(raw_val):
         if isinstance(chunk, bytes):
-            parts.append(chunk.decode(charset or "utf-8", errors="replace"))
+            parts.append(_safe_decode_bytes(chunk, charset))
         else:
             parts.append(str(chunk))
     return "".join(parts).strip()
@@ -309,16 +320,14 @@ def _extract_email_text(msg: email.message.Message) -> str:
             if ctype in ("text/plain", "text/html"):
                 payload = part.get_payload(decode=True)
                 if payload:
-                    charset = part.get_content_charset() or "utf-8"
-                    txt = payload.decode(charset, errors="replace")
+                    txt = _safe_decode_bytes(payload, part.get_content_charset())
                     if ctype == "text/html":
                         txt = re.sub(r"<[^>]+>", " ", txt)
                     texts.append(txt)
     else:
         payload = msg.get_payload(decode=True)
         if payload:
-            charset = msg.get_content_charset() or "utf-8"
-            txt = payload.decode(charset, errors="replace")
+            txt = _safe_decode_bytes(payload, msg.get_content_charset())
             if msg.get_content_type() == "text/html":
                 txt = re.sub(r"<[^>]+>", " ", txt)
             texts.append(txt)
@@ -361,45 +370,49 @@ def fetch_gmail_vacancies_12h(
                 break
 
         for num in msg_ids[-40:]:
-            typ, msg_data = mail.fetch(num, "(RFC822)")
-            if typ != "OK" or not msg_data or not msg_data[0]:
-                continue
-            raw_bytes = msg_data[0][1]
-            if not isinstance(raw_bytes, bytes):
-                continue
-            msg = email.message_from_bytes(raw_bytes)
-            subject = _decode_mime_words(msg.get("Subject"))
-            sender = _decode_mime_words(msg.get("From")).lower()
-
-            if "резюме просмотрели" in subject.lower() or "linkedin" in sender:
-                continue
-
-            body_text = _extract_email_text(msg)
-            urls = re.findall(r"https?://[^\s<>)x27]+", body_text)
-            vacancy_urls = [
-                u for u in urls
-                if ("hh.ru/vacancy/" in u or "superjob.ru/vacancy/" in u or "/ml/r/" in u)
-            ]
-
-            hh_matches = re.findall(r"(https?://hh\.ru/vacancy/\d+[^\s<>)x27]*)", body_text)
-            seen_in_mail = set()
-            for vurl in (hh_matches or vacancy_urls[:8]):
-                clean_url = vurl.split("?")[0].strip()
-                if clean_url in seen_in_mail:
+            try:
+                typ, msg_data = mail.fetch(num, "(RFC822)")
+                if typ != "OK" or not msg_data or not msg_data[0]:
                     continue
-                seen_in_mail.add(clean_url)
-                vid_match = re.search(r"/vacancy/(\d+)", clean_url)
-                vid_label = f"hh.ru #{vid_match.group(1)}" if vid_match else "Рассылка"
-                items.append(
-                    {
-                        "title": f"{subject} ({vid_label})" if subject else vid_label,
-                        "source": f"Gmail ({sender[:35]})",
-                        "url": clean_url,
-                        "summary": f"Найдено в рассылке «{subject}» за окно {hours_window} ч.",
-                        "raw_text": f"{subject}\n{body_text[:2500]}",
-                        "published_at": datetime.now(timezone.utc).isoformat(),
-                    }
-                )
+                raw_bytes = msg_data[0][1]
+                if not isinstance(raw_bytes, bytes):
+                    continue
+                msg = email.message_from_bytes(raw_bytes)
+                subject = _decode_mime_words(msg.get("Subject"))
+                sender = _decode_mime_words(msg.get("From")).lower()
+
+                if "резюме просмотрели" in subject.lower() or "linkedin" in sender:
+                    continue
+
+                body_text = _extract_email_text(msg)
+                urls = re.findall(r"https?://[^\s<>)x27]+", body_text)
+                vacancy_urls = [
+                    u for u in urls
+                    if ("hh.ru/vacancy/" in u or "superjob.ru/vacancy/" in u or "/ml/r/" in u)
+                ]
+
+                hh_matches = re.findall(r"(https?://hh\.ru/vacancy/\d+[^\s<>)x27]*)", body_text)
+                seen_in_mail = set()
+                for vurl in (hh_matches or vacancy_urls[:8]):
+                    clean_url = vurl.split("?")[0].strip()
+                    if clean_url in seen_in_mail:
+                        continue
+                    seen_in_mail.add(clean_url)
+                    vid_match = re.search(r"/vacancy/(\d+)", clean_url)
+                    vid_label = f"hh.ru #{vid_match.group(1)}" if vid_match else "Рассылка"
+                    items.append(
+                        {
+                            "title": f"{subject} ({vid_label})" if subject else vid_label,
+                            "source": f"Gmail ({sender[:35]})",
+                            "url": clean_url,
+                            "summary": f"Найдено в рассылке «{subject}» за окно {hours_window} ч.",
+                            "raw_text": f"{subject}\n{body_text[:2500]}",
+                            "published_at": datetime.now(timezone.utc).isoformat(),
+                        }
+                    )
+            except Exception as msg_exc:
+                print(f"[warn] Пропущено одно письмо при IMAP-разборе: {msg_exc}")
+                continue
         mail.logout()
     except Exception as exc:
         print(f"[warn] IMAP сбор не выполнен: {exc}")
@@ -532,10 +545,7 @@ def _normalize_dedup_key(item: dict) -> str:
 
 
 def deduplicate_items(items: list[dict], seen_urls: set[str]) -> tuple[list[dict], set[str], int]:
-    """
-    Удаляет дубликаты между запусками и склеивает кросспосты внутри одного окна,
-    сохраняя ссылки на дубли в поле duplicate_sources.
-    """
+    """Удаляет дубликаты между запусками и склеивает кросспосты внутри одного окна."""
     unique: list[dict] = []
     updated_seen = set(seen_urls)
     by_norm_key: dict[str, dict] = {}
@@ -570,19 +580,10 @@ def deduplicate_items(items: list[dict], seen_urls: set[str]) -> tuple[list[dict
 
 
 def score_item_100(item: dict) -> dict:
-    """
-    100-балльная модель оценки под резюме №1 и №2:
-    1) Роль и функция (до 40)
-    2) Уровень (до 15)
-    3) Локация и формат (до 20)
-    4) Навыки и платформы (до 15)
-    5) Условия (до 10; если оплата не указана — нейтральные 4 балла)
-    Правило: если роль <= 6/40, итог ограничен 30 баллами.
-    """
+    """100-балльная модель оценки под резюме №1 и №2."""
     title_low = (item.get("title") or "").lower()
     text_blob = f"{item.get('title', '')} {item.get('summary', '')} {item.get('raw_text', '')}".lower()
 
-    # --- 1. РОЛЬ И ФУНКЦИЯ (макс. 40) ---
     role_score = 4
     role_note = "роль слабо пересекается с редакцией и контентом"
 
@@ -605,17 +606,14 @@ def score_item_100(item: dict) -> dict:
         role_score = 20
         role_note = "есть редакторские или контентные задачи"
 
-    # Понижение за чистый контент-маркетинг, воронки продаж и товарный SMM (не отбрасываем, но снижаем приоритет)
     is_marketing_heavy = any(re.search(p, text_blob, flags=re.I) for p in PURE_MARKETING_PENALTY_PATTERNS)
     if is_marketing_heavy and role_score > 14:
         role_score = max(14, role_score - 8)
         role_note += "; понижено из-за уклона в контент-маркетинг/воронки/SMM"
 
-    # Бонус за явный медийный контекст (СМИ, редакция, бренд-медиа, YouTube/подкаст)
     if any(re.search(p, text_blob, flags=re.I) for p in [r"\bсми\b", r"бренд[- ]медиа", r"редакц", r"подкаст", r"youtube"]):
         role_score = min(40, role_score + 2)
 
-    # --- 2. УРОВЕНЬ (макс. 15) ---
     level_score = 7
     if any(re.search(p, text_blob, flags=re.I) for p in [r"head of", r"директор", r"главн\w* редактор", r"шеф[- ]редактор", r"руководитель", r"lead", r"тимлид", r"глава"]):
         level_score = 14
@@ -626,7 +624,6 @@ def score_item_100(item: dict) -> dict:
     else:
         level_score = 6
 
-    # --- 3. ЛОКАЦИЯ И ФОРМАТ (макс. 20) ---
     has_remote = any(re.search(p, text_blob, flags=re.I) for p in [r"удален", r"удалён", r"remote", r"дистанц", r"из любой точки"])
     has_spb = any(re.search(p, text_blob, flags=re.I) for p in [r"санкт-петербург", r"\bспб\b", r"петербург"])
     has_reloc = any(re.search(p, text_blob, flags=re.I) for p in [r"релокац", r"переезд", r"шанхай", r"цюрих", r"тель-авив", r"астана", r"алматы"])
@@ -645,7 +642,6 @@ def score_item_100(item: dict) -> dict:
         location_score = 12
         loc_note = "локация и формат не указаны"
 
-    # --- 4. НАВЫКИ И ПЛАТФОРМЫ (макс. 15) ---
     skills_score = 4
     matched_skills = []
     skill_checks = [
@@ -661,14 +657,12 @@ def score_item_100(item: dict) -> dict:
             skills_score += pts
             matched_skills.append(label)
 
-    # Учёт английского B2: если требуют свободное написание статей/лонгридов на английском — риск/штраф
     if re.search(r"(стат\w*|копирайт\w*|текст\w*).{0,35}английск|на английском", text_blob, flags=re.I):
         skills_score = max(4, skills_score - 3)
         matched_skills.append("риск по английскому (у вас B2)")
 
     skills_score = min(15, skills_score)
 
-    # --- 5. УСЛОВИЯ И ОПЛАТА (макс. 10; нейтральные 4 если не указано) ---
     cond_score = 4
     cond_note = "оплата не указана (нейтральные 4/10)"
 
