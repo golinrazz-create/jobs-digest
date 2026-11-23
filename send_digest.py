@@ -1,4 +1,5 @@
 import email
+import html as html_lib
 import imaplib
 import json
 import os
@@ -823,36 +824,81 @@ def format_digest_html_and_text(
     stats: dict,
     window_label: str,
 ) -> tuple[str, str]:
-    """Формирует письмо в формате 100-балльного ранжирования (секции A, B, C + сводка отсева)."""
+    """Формирует текстовую и аккуратную HTML-версию письма для Gmail с карточками и бейджами."""
     text_lines = [
         f"Дайджест вакансий ({window_label})",
         "=" * 44,
         f"A (70–100): {len(tier_a)} | B (55–69): {len(tier_b)} | C (40–54): {len(tier_c)}",
-        f"Отсеяно: не-вакансий — {stats.get('non_vacancies_excluded', 0)}, продажи/стоп-факторы — {stats.get('hard_stopped_sales_etc', 0)}, не по профилю (<40) — {stats.get('tier_D_under_40_hidden', 0)}, дублей склеено — {stats.get('merged_duplicates', 0)}",
+        (
+            f"Отсеяно: не-вакансий — {stats.get('non_vacancies_excluded', 0)}, "
+            f"продажи/стоп-факторы — {stats.get('hard_stopped_sales_etc', 0)}, "
+            f"не по профилю (<40) — {stats.get('tier_D_under_40_hidden', 0)}, "
+            f"дублей склеено — {stats.get('merged_duplicates', 0)}"
+        ),
         "",
     ]
 
+    font_stack = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif"
+
     html_parts = [
-        f"<h2>Дайджест вакансий ({window_label})</h2>",
-        f"<p><b>A. Идеально (70–100):</b> {len(tier_a)} &nbsp;|&nbsp; "
-        f"<b>B. Хорошо (55–69):</b> {len(tier_b)} &nbsp;|&nbsp; "
-        f"<b>C. С оговорками (40–54):</b> {len(tier_c)}</p>",
-        f"<p><small>Отсеяно автоматически: не-вакансий — {stats.get('non_vacancies_excluded', 0)}, "
-        f"продажи и стоп-факторы — {stats.get('hard_stopped_sales_etc', 0)}, "
-        f"не по профилю (&lt;40) — {stats.get('tier_D_under_40_hidden', 0)}, "
-        f"дублей склеено — {stats.get('merged_duplicates', 0)}.</small></p>",
+        "<!DOCTYPE html>",
+        "<html lang='ru'>",
+        "<head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'></head>",
+        f"<body style=\"margin:0; padding:0; background-color:#f4f5f7; font-family:{font_stack}; color:#1f2328; -webkit-font-smoothing:antialiased;\">",
+        "<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='background-color:#f4f5f7; padding:20px 12px;'>",
+        "<tr><td align='center'>",
+        "<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='max-width:680px; background-color:#ffffff; border-radius:12px; border:1px solid #e1e4e8; overflow:hidden;'>",
+        "<tr><td style='background-color:#111827; padding:24px 28px; color:#ffffff;'>",
+        "<div style='font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:#9ca3af; margin-bottom:6px;'>Автоматический отбор · 12 часов</div>",
+        "<div style='font-size:22px; font-weight:700; line-height:1.3; margin-bottom:6px;'>Дайджест вакансий</div>",
+        f"<div style='font-size:13px; color:#d1d5db;'>Выпуск от {html_lib.escape(window_label)}</div>",
+        "</td></tr>",
+        "<tr><td style='padding:20px 28px 8px 28px;'>",
+        "<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0' style='background-color:#f8fafc; border:1px solid #e2e8f0; border-radius:8px;'>",
+        "<tr>",
+        f"<td width='33%' style='padding:12px 14px; border-right:1px solid #e2e8f0; text-align:center;'>"
+        f"<div style='font-size:20px; font-weight:700; color:#15803d;'>{len(tier_a)}</div>"
+        f"<div style='font-size:12px; color:#475569; margin-top:2px;'>A · Идеально (70–100)</div></td>",
+        f"<td width='33%' style='padding:12px 14px; border-right:1px solid #e2e8f0; text-align:center;'>"
+        f"<div style='font-size:20px; font-weight:700; color:#1d4ed8;'>{len(tier_b)}</div>"
+        f"<div style='font-size:12px; color:#475569; margin-top:2px;'>B · Хорошо (55–69)</div></td>",
+        f"<td width='34%' style='padding:12px 14px; text-align:center;'>"
+        f"<div style='font-size:20px; font-weight:700; color:#b45309;'>{len(tier_c)}</div>"
+        f"<div style='font-size:12px; color:#475569; margin-top:2px;'>C · С оговорками (40–54)</div></td>",
+        "</tr></table>",
+        f"<div style='font-size:12px; color:#64748b; line-height:1.5; margin-top:10px;'>"
+        f"Отсеяно фильтром: не-вакансий — <b>{stats.get('non_vacancies_excluded', 0)}</b>, "
+        f"продажи и стоп-факторы — <b>{stats.get('hard_stopped_sales_etc', 0)}</b>, "
+        f"не по профилю (&lt;40) — <b>{stats.get('tier_D_under_40_hidden', 0)}</b>, "
+        f"дублей склеено — <b>{stats.get('merged_duplicates', 0)}</b>."
+        f"</div>",
+        "</td></tr>",
     ]
 
     counter = [0]
 
-    def _add_section(title: str, items: list[dict]) -> None:
+    def _add_section(title: str, subtitle: str, items: list[dict], accent_color: str, badge_bg: str, badge_fg: str) -> None:
         text_lines.append(title)
         text_lines.append("-" * 36)
-        html_parts.append(f"<h3>{title}</h3>")
+
+        html_parts.append("<tr><td style='padding:20px 28px 6px 28px;'>")
+        html_parts.append(
+            f"<div style='border-left:4px solid {accent_color}; padding-left:12px; margin-bottom:14px;'>"
+            f"<div style='font-size:17px; font-weight:700; color:#111827;'>{html_lib.escape(title)}</div>"
+            f"<div style='font-size:12px; color:#6b7280; margin-top:2px;'>{html_lib.escape(subtitle)}</div>"
+            f"</div>"
+        )
+
         if not items:
             text_lines.append("Нет новых позиций в этом окне.\n")
-            html_parts.append("<p><i>Нет новых позиций в этом окне.</i></p>")
+            html_parts.append(
+                "<div style='padding:12px 14px; background-color:#f9fafb; border:1px dashed #d1d5db; border-radius:8px; font-size:13px; color:#6b7280;'>"
+                "Нет новых позиций в этом окне."
+                "</div>"
+            )
+            html_parts.append("</td></tr>")
             return
+
         for item in items:
             counter[0] += 1
             num = counter[0]
@@ -875,22 +921,84 @@ def format_digest_html_and_text(
                 text_lines.append(f"   Дубль в других каналах: {dup_str}")
             text_lines.append("")
 
-            link_html = f'<a href="{url}">{role}</a>' if url else role
-            dup_html = ""
-            if dups:
-                dup_links = ", ".join(f'<a href="{d.get("url")}">{d.get("source")}</a>' for d in dups)
-                dup_html = f"<br><small>Дубль в других каналах: {dup_links}</small>"
+            safe_role = html_lib.escape(role)
+            safe_source = html_lib.escape(source)
+            safe_breakdown = html_lib.escape(breakdown)
+            safe_explanation = html_lib.escape(explanation)
+            safe_url = html_lib.escape(url, quote=True)
 
-            html_parts.append(
-                f"<p><b>{num}. {link_html}</b> — <b>{score}/100</b><br>"
-                f"<small>{breakdown}</small><br>"
-                f"<small>Источник: {source}</small><br>"
-                f"<i>{explanation}</i>{dup_html}</p>"
+            title_block = (
+                f"<a href='{safe_url}' style='color:#111827; text-decoration:none; border-bottom:1px solid #cbd5e1;'>{safe_role}</a>"
+                if url else safe_role
             )
 
-    _add_section("A. Идеально и очень близко (70–100)", tier_a)
-    _add_section("B. Хорошо, стоит откликаться (55–69)", tier_b)
-    _add_section("C. С оговорками (40–54)", tier_c)
+            dup_html = ""
+            if dups:
+                dup_links = ", ".join(
+                    f"<a href='{html_lib.escape(d.get('url', ''), quote=True)}' style='color:#2563eb; text-decoration:none;'>{html_lib.escape(d.get('source', ''))}</a>"
+                    for d in dups
+                )
+                dup_html = f"<div style='font-size:12px; color:#6b7280; margin-top:6px;'>Дубль в других каналах: {dup_links}</div>"
+
+            cta_html = (
+                f"<div style='margin-top:10px;'>"
+                f"<a href='{safe_url}' style='display:inline-block; font-size:12px; font-weight:600; color:#2563eb; text-decoration:none;'>Открыть вакансию &rarr;</a>"
+                f"</div>"
+                if url else ""
+            )
+
+            html_parts.append(
+                "<div style='border:1px solid #e5e7eb; border-radius:10px; padding:14px 16px; margin-bottom:12px; background-color:#ffffff;'>"
+                "<table role='presentation' width='100%' cellpadding='0' cellspacing='0' border='0'>"
+                "<tr>"
+                f"<td valign='top' style='font-size:15px; font-weight:700; line-height:1.4; color:#111827; padding-right:10px;'>{num}. {title_block}</td>"
+                f"<td valign='top' align='right' style='white-space:nowrap;'>"
+                f"<span style='display:inline-block; background-color:{badge_bg}; color:{badge_fg}; font-size:12px; font-weight:700; padding:3px 9px; border-radius:999px;'>{score}/100</span>"
+                f"</td>"
+                "</tr></table>"
+                f"<div style='font-size:12px; color:#4b5563; margin-top:6px;'>{safe_breakdown}</div>"
+                f"<div style='font-size:12px; color:#6b7280; margin-top:3px;'>Источник: {safe_source}</div>"
+                f"<div style='font-size:13.5px; line-height:1.5; color:#1f2937; margin-top:8px;'>{safe_explanation}</div>"
+                f"{dup_html}"
+                f"{cta_html}"
+                "</div>"
+            )
+
+        html_parts.append("</td></tr>")
+
+    _add_section(
+        "A. Идеально и очень близко (70–100)",
+        "Прямое совпадение по уровню, редакторской/контентной функции и условиям",
+        tier_a,
+        accent_color="#16a34a",
+        badge_bg="#dcfce7",
+        badge_fg="#166534",
+    )
+    _add_section(
+        "B. Хорошо, стоит откликаться (55–69)",
+        "Близкие по профилю и навыкам роли — имеет смысл посмотреть детали",
+        tier_b,
+        accent_color="#2563eb",
+        badge_bg="#dbeafe",
+        badge_fg="#1e40af",
+    )
+    _add_section(
+        "C. С оговорками (40–54)",
+        "Смежные позиции, ниже по уровню или с вопросами к формату/локации",
+        tier_c,
+        accent_color="#d97706",
+        badge_bg="#fef3c7",
+        badge_fg="#92400e",
+    )
+
+    html_parts.extend([
+        "<tr><td style='padding:16px 28px 24px 28px; border-top:1px solid #f1f5f9; font-size:12px; color:#94a3b8; text-align:center;'>",
+        "Дайджест сформирован автоматически по 100-балльной модели профиля · Позиции &lt;40 баллов и не-вакансии скрыты",
+        "</td></tr>",
+        "</table>",
+        "</td></tr></table>",
+        "</body></html>",
+    ])
 
     return "\n".join(text_lines), "\n".join(html_parts)
 
