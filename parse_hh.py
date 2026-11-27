@@ -744,7 +744,11 @@ def fetch_labeled_emails_vacancies_12h(
                 # Отмечаем письмо как обработанное даже если в нём нет новых вакансий
                 seen_emails.add(email_key)
                 if processed_email_ids_out is not None:
-                    processed_email_ids_out.add(email_key)
+                    if isinstance(processed_email_ids_out, set):
+                        processed_email_ids_out.add(email_key)
+                    elif isinstance(processed_email_ids_out, list):
+                        if email_key not in processed_email_ids_out:
+                            processed_email_ids_out.append(email_key)
 
                 if "резюме просмотрели" in subject.lower():
                     continue
