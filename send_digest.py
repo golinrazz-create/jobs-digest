@@ -759,6 +759,9 @@ def collect_and_score_12h(
             state = {"seen_urls": []}
 
     seen_set = set(state.get("seen_urls") or [])
+    seen_email_ids = list(state.get("seen_email_ids") or [])
+    seen_email_set = set(seen_email_ids)
+    newly_processed_emails: list[str] = []
 
     tg_list = list(TG_HIGH_CHANNELS)
     if include_medium_tg:
@@ -774,13 +777,25 @@ def collect_and_score_12h(
                 label_name=gmail_label,
                 window_hours=hours_window,
                 seen_urls=seen_set,
+                seen_email_ids=seen_email_set,
+                processed_email_ids_out=newly_processed_emails,
+            )
+        )
+    except TypeError:
+        # На случай старой сигнатуры parse_hh без новых параметров
+        from parse_hh import fetch_labeled_emails_vacancies_12h
+        raw_items.extend(
+            fetch_labeled_emails_vacancies_12h(
+                gmail_user,
+                gmail_pass,
+                label_name=gmail_label,
+                window_hours=hours_window,
+                seen_urls=seen_set,
             )
         )
     except Exception as mail_parse_exc:
         print(f"[warn] Ошибка parse_hh, переход на резервный IMAP-сбор: {mail_parse_exc}")
         raw_items.extend(fetch_gmail_vacancies_12h(gmail_user, gmail_pass, gmail_label, hours_window=hours_window))
-    raw_items.extend(fetch_workspace_rss_12h(WORKSPACE_RSS_URL, hours_window=hours_window))
-    raw_items.extend(fetch_telegram_public_preview_12h(tg_list, hours_window=hours_window))
 
     unique_items, updated_seen, merged_dups = deduplicate_items(raw_items, seen_set)
 
@@ -816,6 +831,13 @@ def collect_and_score_12h(
     tier_b.sort(key=lambda x: x.get("score", 0), reverse=True)
     tier_c.sort(key=lambda x: x.get("score", 0), reverse=True)
 
+    if newly_processed_emails:
+        for eid in newly_processed_emails:
+            if eid and eid not in seen_email_set:
+                seen_email_ids.append(eid)
+                seen_email_set.add(eid)
+    state["seen_email_ids"] = seen_email_ids[-2000:]
+    
     state["seen_urls"] = list(updated_seen)[-1500:]
     state_file.parent.mkdir(parents=True, exist_ok=True)
     state_file.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
