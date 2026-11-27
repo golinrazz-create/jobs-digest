@@ -1,6 +1,7 @@
 import email
 from email.header import decode_header
 from email.utils import parsedate_to_datetime
+import hashlib
 import html as html_lib
 import imaplib
 import json
@@ -8,9 +9,9 @@ import os
 import re
 import urllib.parse
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from html.parser import HTMLParser
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 # ==============================================================================
@@ -186,7 +187,7 @@ class _AnchorExtractor(HTMLParser):
 
 
 class _CleanPageParser(HTMLParser):
-    """Извлекает заголовок (<h1> / <title> / og:title) и чистый текст страницы без меню и футеров."""
+    """Извлекает заголовок (<h1> / og:title / <title>) и чистый текст страницы."""
 
     SKIP_TAGS = {"script", "style", "noscript", "svg", "iframe", "nav", "header", "footer", "aside", "form"}
     BLOCK_TAGS = {"p", "div", "br", "li", "h1", "h2", "h3", "h4", "h5", "h6", "tr", "section", "article"}
@@ -282,6 +283,22 @@ def decode_mime_header(raw_value: Optional[str]) -> str:
     return "".join(decoded).strip()
 
 
+def build_email_tracking_id(msg: email.message.Message, raw_bytes: bytes) -> str:
+    """Формирует стабильный ключ письма (Message-ID либо хэш заголовков/тела), чтобы не парсить повторно."""
+    msg_id = (msg.get("Message-ID") or msg.get("Message-Id") or "").strip()
+    if msg_id:
+        return msg_id.lower()
+    digest_src = "|".join(
+        [
+            (msg.get("Date") or "").strip(),
+            (msg.get("From") or "").strip(),
+            (msg.get("Subject") or "").strip(),
+            str(len(raw_bytes)),
+        ]
+    )
+    return "hash:" + hashlib.sha256(digest_src.encode("utf-8", errors="replace")).hexdigest()[:24]
+
+
 def clean_url(url: str) -> str:
     """Убирает UTM-метки, якоря и лишние пробелы из URL."""
     url = html_lib.unescape(url or "").strip()
@@ -304,7 +321,7 @@ def clean_url(url: str) -> str:
 
 def normalize_whitespace(text: str) -> str:
     text = html_lib.unescape(text or "")
-    text = text.replace("\xa0", " ").replace("\u200b", "")
+    text = text.replace("\xa0", " ").replace("\u202f", " ").replace("\u200b", "")
     lines = [re.sub(r"[ \t]+", " ", line).strip() for line in text.splitlines()]
     result: List[str] = []
     empty_streak = 0
@@ -411,7 +428,7 @@ def extract_links_from_email(msg: email.message.Message) -> List[Tuple[str, str]
                 text_parts.append(decoded)
 
     found: List[Tuple[str, str]] = []
-    seen_keys = set()
+    seen_keys: Set[str] = set()
 
     for raw_html in html_parts:
         extractor = _AnchorExtractor()
@@ -521,7 +538,6 @@ def parse_hh_vacancy(vacancy_id: str) -> Optional[Dict[str, str]]:
     except Exception:
         pass
 
-    # Запасной вариант — HTML-страница hh.ru
     web_url = f"https://hh.ru/vacancy/{vacancy_id}"
     return parse_generic_vacancy_page(web_url)
 
@@ -635,12 +651,12 @@ def fetch_and_clean_vacancy(
 
 
 # ==============================================================================
-# ЧТЕНИЕ ПИСЕМ ИЗ GMAIL ПО ЯРЛЫКУ label:jobs_digest
+# ЧТЕНИЕ ВСЕХ НЕРАСПАРСЕННЫХ ПИСЕМ ИЗ GMAIL ПО ЯРЛЫКУ Jobs_Digest
 # ==============================================================================
 
 def select_digest_mailbox(imap: imaplib.IMAP4_SSL, preferred_label: str = "Jobs_Digest") -> bool:
     """Выбирает ярлык Jobs_Digest / jobs_digest в Gmail IMAP независимо от регистра."""
-    candidates = []
+    candidates: List[str] = []
     for lbl in (preferred_label, "Jobs_Digest", "jobs_digest"):
         if lbl and lbl not in candidates:
             candidates.append(lbl)
@@ -659,22 +675,23 @@ def fetch_labeled_emails_vacancies_12h(
     label_name: str = "Jobs_Digest",
     imap_host: str = "imap.gmail.com",
     window_hours: int = 12,
-    seen_urls: Optional[set] = None,
+    seen_urls: Optional[Set[str]] = None,
+    seen_email_ids: Optional[Set[str]] = None,
+    processed_email_ids_out: Optional[Set[str]] = None,
 ) -> List[Dict[str, str]]:
     """
-    Берёт ВСЕ письма в Gmail с ярлыком label:jobs_digest (Jobs_Digest) за последние
-    `window_hours` часов независимо от отправителя (не только hh.ru), переходит по всем
-    релевантным ссылкам в письмах, вытаскивает содержание вакансий и отсекает лишнее.
-    Возвращает список словарей в формате, совместимом с send_digest.py.
+    Берёт из Gmail ВСЕ письма с ярлыком Jobs_Digest (label:jobs_digest), которые ещё
+    не были распарсены в прошлых запусках (без жёсткого ограничения в 12 часов по дате
+    письма), переходит по всем релевантным ссылкам, очищает текст вакансий и возвращает
+    новые карточки. Параметр `window_hours` сохранён для обратной совместимости.
     """
     if not imap_user or not imap_password:
         return []
 
     clean_pass = imap_password.replace(" ", "")
-    seen = set(seen_urls or set())
+    seen_u: Set[str] = {u.strip().lower() for u in (seen_urls or set()) if u and u.strip()}
+    seen_emails: Set[str] = {e.strip().lower() for e in (seen_email_ids or set()) if e and e.strip()}
     now_utc = datetime.now(timezone.utc)
-    cutoff_utc = now_utc - timedelta(hours=window_hours)
-    since_imap_date = (cutoff_utc - timedelta(days=1)).strftime("%d-%b-%Y")
 
     results: List[Dict[str, str]] = []
     url_cache: Dict[str, Optional[dict]] = {}
@@ -684,9 +701,8 @@ def fetch_labeled_emails_vacancies_12h(
         imap.login(imap_user, clean_pass)
 
         if select_digest_mailbox(imap, preferred_label=label_name):
-            status, data = imap.search(None, f'(SINCE "{since_imap_date}")')
+            status, data = imap.search(None, "ALL")
         else:
-            # Фолбэк через Gmail-поиск X-GM-RAW по ярлыку label:jobs_digest
             all_mail_opened = False
             for all_folder in ('"[Gmail]/All Mail"', '"[Gmail]/Вся почта"', '"[Gmail]/Почта"'):
                 st_all, _ = imap.select(all_folder, readonly=True)
@@ -695,11 +711,7 @@ def fetch_labeled_emails_vacancies_12h(
                     break
             if not all_mail_opened:
                 return []
-            status, data = imap.search(
-                None,
-                "X-GM-RAW",
-                '"label:jobs_digest newer_than:2d"',
-            )
+            status, data = imap.search(None, "X-GM-RAW", '"label:jobs_digest"')
 
         if status != "OK" or not data or not data[0]:
             return []
@@ -711,43 +723,48 @@ def fetch_labeled_emails_vacancies_12h(
                 if fetch_status != "OK" or not msg_data:
                     continue
 
-                raw_bytes = None
+                raw_bytes: Optional[bytes] = None
                 for item in msg_data:
-                    if isinstance(item, tuple) and len(item) >= 2:
+                    if isinstance(item, tuple) and len(item) >= 2 and isinstance(item[1], bytes):
                         raw_bytes = item[1]
                         break
                 if not raw_bytes:
                     continue
 
                 msg = email.message_from_bytes(raw_bytes)
+                email_key = build_email_tracking_id(msg, raw_bytes).lower()
 
-                # Точная проверка времени получения письма (окно 12 часов)
+                # Пропускаем письма, которые уже были распарсены ранее
+                if email_key in seen_emails:
+                    continue
+
+                subject = decode_mime_header(msg.get("Subject"))
+                sender = decode_mime_header(msg.get("From"))
+
+                # Отмечаем письмо как обработанное даже если в нём нет новых вакансий
+                seen_emails.add(email_key)
+                if processed_email_ids_out is not None:
+                    processed_email_ids_out.add(email_key)
+
+                if "резюме просмотрели" in subject.lower():
+                    continue
+
                 msg_dt_utc = now_utc
                 raw_date = msg.get("Date")
                 if raw_date:
                     try:
                         parsed_dt = parsedate_to_datetime(raw_date)
                         if parsed_dt.tzinfo is None:
-                            parsed_dt = parsed_dt.replace(tzinfo=timezone.utc)
+                            msg_dt_utc = parsed_dt.replace(tzinfo=timezone.utc)
                         else:
-                            parsed_dt = parsed_dt.astimezone(timezone.utc)
-                        if parsed_dt < cutoff_utc:
-                            continue
-                        msg_dt_utc = parsed_dt
+                            msg_dt_utc = parsed_dt.astimezone(timezone.utc)
                     except Exception:
                         pass
 
-                subject = decode_mime_header(msg.get("Subject"))
-                sender = decode_mime_header(msg.get("From"))
-
-                # Отсекаем системные уведомления без вакансий
-                if "резюме просмотрели" in subject.lower():
-                    continue
-
                 candidate_links = extract_links_from_email(msg)
                 for raw_url, anchor_text in candidate_links:
-                    cleaned_pre = clean_url(raw_url) or raw_url
-                    if cleaned_pre in seen:
+                    cleaned_pre = (clean_url(raw_url) or raw_url).strip().lower()
+                    if cleaned_pre in seen_u:
                         continue
 
                     vacancy = fetch_and_clean_vacancy(
@@ -758,10 +775,11 @@ def fetch_labeled_emails_vacancies_12h(
                     if not vacancy:
                         continue
 
-                    canon_url = vacancy["url"]
-                    if canon_url in seen:
+                    canon_url = (vacancy["url"] or "").strip()
+                    canon_low = canon_url.lower()
+                    if not canon_url or canon_low in seen_u:
                         continue
-                    seen.add(canon_url)
+                    seen_u.add(canon_low)
 
                     body_text = vacancy["body"]
                     summary_snippet = re.sub(r"\s+", " ", body_text)[:280].strip()
@@ -796,7 +814,7 @@ if __name__ == "__main__":
     user = os.getenv("GMAIL_USER", "").strip()
     pwd = os.getenv("GMAIL_APP_PASSWORD", "").strip()
     lbl = os.getenv("GMAIL_LABEL", "Jobs_Digest").strip()
-    items = fetch_labeled_emails_vacancies_12h(user, pwd, label_name=lbl, window_hours=12)
-    print(f"Найдено и распарсено вакансий из label:{lbl}: {len(items)}")
+    items = fetch_labeled_emails_vacancies_12h(user, pwd, label_name=lbl)
+    print(f"Найдено и распарсено новых вакансий из label:{lbl}: {len(items)}")
     for idx, item in enumerate(items, 1):
         print(f"{idx}. {item['title']} — {item['url']} (символов: {len(item['raw_text'])})")
