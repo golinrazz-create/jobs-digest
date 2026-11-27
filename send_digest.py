@@ -762,7 +762,20 @@ def collect_and_score_12h(
         tg_list.extend(TG_MED_CHANNELS)
 
     raw_items: list[dict] = []
-    raw_items.extend(fetch_gmail_vacancies_12h(gmail_user, gmail_pass, gmail_label, hours_window=hours_window))
+    try:
+        from parse_hh import fetch_labeled_emails_vacancies_12h
+        raw_items.extend(
+            fetch_labeled_emails_vacancies_12h(
+                gmail_user,
+                gmail_pass,
+                label_name=gmail_label,
+                window_hours=hours_window,
+                seen_urls=seen_set,
+            )
+        )
+    except Exception as mail_parse_exc:
+        print(f"[warn] Ошибка parse_hh, переход на резервный IMAP-сбор: {mail_parse_exc}")
+        raw_items.extend(fetch_gmail_vacancies_12h(gmail_user, gmail_pass, gmail_label, hours_window=hours_window))
     raw_items.extend(fetch_workspace_rss_12h(WORKSPACE_RSS_URL, hours_window=hours_window))
     raw_items.extend(fetch_telegram_public_preview_12h(tg_list, hours_window=hours_window))
 
