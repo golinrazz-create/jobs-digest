@@ -667,8 +667,11 @@ def score_item_100(item: dict) -> dict:
     cond_score = 4
     cond_note = "оплата не указана (нейтральные 4/10)"
 
-    usd_match = re.search(r"\$\s*(\d[\d\s]{2,5})", text_blob)
-    rub_matches = [int(x.replace(" ", "")) for x in re.findall(r"(\d{2,3}[\s]?\d{3})\s*(?:₽|руб|р\.)", text_blob)]
+    usd_match = re.search(r"\$\s*(\d[\d\s\u202f\xa0]{1,5})", text_blob)
+    rub_matches = [
+        int(re.sub(r"\s+", "", x))
+        for x in re.findall(r"(\d{2,3}[\s\u202f\xa0]?\d{3})\s*(?:₽|руб|р\.)", text_blob)
+    ]
     k_rub_matches = [int(x) * 1000 for x in re.findall(r"(\d{2,3})\s*к\b", text_blob)]
     all_rub = [v for v in (rub_matches + k_rub_matches) if 20000 <= v <= 2000000]
 
